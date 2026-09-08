@@ -55,3 +55,19 @@ def test_replace_professors_is_idempotent_and_drops_removed_staff(tmp_path):
     assert [p.name for p in stored] == ["CLARA DANTAS DE EXEMPLO"]
     assert stored[0].email == "clara@ci.ufpb.br"
     conn.close()
+
+
+def test_filter_by_professor_ignores_accents_and_case():
+    from types import SimpleNamespace
+
+    from sigaa.cli import _filter_by_professor
+
+    turmas = [SimpleNamespace(id_turma="1"), SimpleNamespace(id_turma="2")]
+    professors = {
+        "1": [SimpleNamespace(name="JOSÉ ANTÔNIO DA SILVA")],
+        "2": [SimpleNamespace(name="MARIA CLARA")],
+    }
+
+    assert [t.id_turma for t in _filter_by_professor(turmas, professors, "jose antonio")] == ["1"]
+    assert [t.id_turma for t in _filter_by_professor(turmas, professors, "Antônio")] == ["1"]
+    assert _filter_by_professor(turmas, professors, "nobody") == []
