@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 import httpx
@@ -311,11 +312,17 @@ def _professors_by_turma(repo: Repository) -> dict[str, list]:
     return grouped
 
 
+def _fold_name(value: str) -> str:
+    """Casefold and strip accents so 'jose' matches 'José'."""
+    decomposed = unicodedata.normalize("NFKD", value)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
+
+
 def _filter_by_professor(turmas: list, professors: dict[str, list], query: str) -> list:
-    needle = query.casefold()
+    needle = _fold_name(query)
     return [
         t for t in turmas
-        if any(needle in p.name.casefold() for p in professors.get(t.id_turma, []))
+        if any(needle in _fold_name(p.name) for p in professors.get(t.id_turma, []))
     ]
 
 
