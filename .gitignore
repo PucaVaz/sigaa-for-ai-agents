@@ -31,3 +31,7 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# Claude Code transcripts
+*-local-command-caveat*.txt
+2026-06-17-141152-local-command-caveatcaveat-the-messages-below.txt

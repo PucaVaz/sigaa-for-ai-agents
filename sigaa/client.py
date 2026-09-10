@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import replace
 from decimal import Decimal
@@ -27,6 +28,7 @@ from .models import (
     Grade,
     Material,
     NewsItem,
+    Professor,
     Student,
     Turma,
     TurmaGrade,
@@ -37,6 +39,7 @@ from .parsers import grades as grades_parser
 from .parsers import plano as plano_parser
 from .parsers import materials as materials_parser
 from .parsers import news as news_parser
+from .parsers import participantes as participantes_parser
 from .parsers import portal as portal_parser
 from .parsers import tarefa as tarefa_parser
 from .parsers import transcript as transcript_parser
@@ -52,6 +55,7 @@ class SigaaClient:
     ):
         self._session = Session(username, password, timeout=timeout)
         self._portal_html: str | None = None
+        self._spent_principals: set[str] = set()
 
     def _portal(self) -> str:
         if self._portal_html is None:
@@ -232,13 +236,31 @@ class SigaaClient:
         }
         return self._session.post(config.PORTAL_ACTION_URL, fields)
 
+    def _principal_for_postback(self, turma: Turma, turma_html: str | None) -> str:
+        """Return a Principal page that is safe to build one postback from.
+
+        A Turma Virtual postback consumes the server-side navigation state: the
+        session moves to the page that was opened, so a second postback built
+        from the same cached Principal page is answered with whatever turma the
+        session currently sits on -- silently returning another turma's content.
+        A cached page may therefore be used exactly once; every later postback
+        re-enters the turma first.
+        """
+        if turma_html:
+            digest = hashlib.sha256(turma_html.encode("utf-8", "replace")).hexdigest()
+            if digest not in self._spent_principals:
+                self._spent_principals.add(digest)
+                return turma_html
+        return self.enter_turma(turma)
+
     def _turma_menu_post(self, turma: Turma, link_text: str, turma_html: str | None = None) -> str:
         """Click a Turma Virtual (formMenu) menu item by its visible text.
 
         Pass ``turma_html`` (an already-fetched Principal page) to skip a redundant
-        ``enter_turma`` round-trip.
+        ``enter_turma`` round-trip -- honoured only for the first postback built
+        from that page, see :meth:`_principal_for_postback`.
         """
-        principal = turma_html or self.enter_turma(turma)
+        principal = self._principal_for_postback(turma, turma_html)
         field = portal_parser.find_menu_field(principal, link_text)
         if field is None:
             raise ValueError(f"turma menu item not found: {link_text!r}")
@@ -264,12 +286,17 @@ class SigaaClient:
         html = self._turma_menu_post(turma, "Plano de Curso", turma_html)
         return plano_parser.parse_course_plan(html, turma.id_turma)
 
+    def list_professors(self, turma: Turma, turma_html: str | None = None) -> list[Professor]:
+        """Teaching staff of a turma (Participantes)."""
+        html = self._turma_menu_post(turma, "Participantes", turma_html)
+        return participantes_parser.parse_professors(html, turma.id_turma)
+
     def list_news(self, turma: Turma, turma_html: str | None = None) -> list[NewsItem]:
         html = turma_html or self.enter_turma(turma)
         return news_parser.parse_news_list(html, turma.id_turma)
 
     def get_news_body(self, turma: Turma, news_id: str, turma_html: str | None = None) -> str | None:
-        html = turma_html or self.enter_turma(turma)
+        html = self._principal_for_postback(turma, turma_html)
         fields = news_parser.build_body_postback(
             html, news_id, extract_viewstate(html, default="j_id2")
         )
