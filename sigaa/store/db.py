@@ -127,6 +127,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if not _has_column(conn, "deadline", "body"):
         conn.execute("ALTER TABLE deadline ADD COLUMN body TEXT")
         conn.commit()
+    _drop_legacy_plan_deadlines(conn)
+
+
+def _drop_legacy_plan_deadlines(conn: sqlite3.Connection) -> None:
+    """Remove plan deadlines keyed by date (``plan:<turma>:<dd/mm/yyyy>:<slug>``).
+
+    Those ids made a rescheduled evaluation look like a new deadline forever;
+    the current id is ``plan:<turma>:<slug>`` and is rebuilt on the next sync.
+    """
+    conn.execute("DELETE FROM deadline WHERE id GLOB 'plan:*:??/??/????:*'")
+    conn.commit()
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
