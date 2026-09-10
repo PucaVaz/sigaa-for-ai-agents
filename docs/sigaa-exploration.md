@@ -32,7 +32,11 @@ positive: the literal "Selecione uma das turmas" string also appears in the
 Principal sidebar, so substring checks misread valid pages as bounced. Verified
 live: Tarefas, Plano de Curso, Frequência, and Participantes all render real
 content. Caveat: reuse one Principal page per postback — do not chain two deep
-posts off the same cached `turma_html` without re-entering.
+posts off the same cached `turma_html` without re-entering. Chaining silently
+returns the page of whatever turma the session currently sits on, which used to
+attribute one turma's Plano de Curso evaluations to another turma every sync.
+`SigaaClient._principal_for_postback` now enforces the rule: a cached Principal
+page is honoured once, and every later postback re-enters the turma first.
 
 ## Portal menu (`/sigaa/portais/discente/...`, sidebar postbacks)
 
