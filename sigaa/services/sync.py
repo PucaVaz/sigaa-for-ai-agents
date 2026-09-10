@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass, field
 
 from ..client import SigaaClient
@@ -24,6 +25,8 @@ from ..models import (
 )
 from ..store.db import connect
 from ..store.repository import Repository
+
+UNTITLED_EVALUATION_SLUG = "avaliacao"
 
 
 @dataclass
@@ -146,11 +149,17 @@ def _sync_turma_plan(
         return []
     if plan is None:
         return []
+    if plan.id_turma != turma.id_turma:
+        return []  # a plan that cannot be attributed to this turma is never stored
     fresh: list[Deadline] = []
+    seen: Counter[str] = Counter()
     for ev in plan.evaluations:
+        slug = _slug(ev.description) or UNTITLED_EVALUATION_SLUG
+        occurrence = seen[slug]
+        seen[slug] += 1
         deadline = Deadline(
-            id=f"plan:{plan.id_turma}:{ev.date}:{_slug(ev.description)}",
-            id_turma=plan.id_turma,
+            id=_plan_deadline_id(turma.id_turma, slug, occurrence),
+            id_turma=turma.id_turma,
             kind="avaliacao",
             title=ev.description,
             date=ev.date,
@@ -159,6 +168,17 @@ def _sync_turma_plan(
         if repo.upsert_deadline(deadline):
             fresh.append(deadline)
     return fresh
+
+
+def _plan_deadline_id(id_turma: str, slug: str, occurrence: int) -> str:
+    """Identify a plan evaluation by turma and evaluation, never by its date.
+
+    Teachers reschedule evaluations, so a date in the id turns every move into a
+    brand-new deadline. ``occurrence`` disambiguates a plan that lists the same
+    evaluation description more than once.
+    """
+    suffix = f":{occurrence}" if occurrence else ""
+    return f"plan:{id_turma}:{slug}{suffix}"
 
 
 def _sync_turma_attendance(
