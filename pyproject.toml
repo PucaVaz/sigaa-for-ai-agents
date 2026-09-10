@@ -27,8 +27,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/PucaVaz/sigaa-for-ai-agents"
-Repository = "https://github.com/PucaVaz/sigaa-for-ai-agents"
+Homepage = "https://github.com/PucaVaz/sigaa-tools"
+Repository = "https://github.com/PucaVaz/sigaa-tools"
+Issues = "https://github.com/PucaVaz/sigaa-tools/issues"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.27,<2"]
